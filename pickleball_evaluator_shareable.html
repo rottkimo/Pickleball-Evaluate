@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>匹克球技能評量系統</title>
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.2/dist/preact.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/preact@10.19.2/hooks/dist/hooks.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+  <div id="app"></div>
+  <script type="module">
+    const { h, render } = preact;
+    const { useState, useRef } = preactHooks;
+
+    const skillItems = [
+      "發球（Serve）", "接發球（Return）", "丁克球（Dink）", "高吊球（Lob）", "擊球落地球（Groundstroke）",
+      "過頂球（Overhead）", "截擊球（Volley）", "反拍控制（Backhand）", "推直線球（Push Shot）",
+      "攻擊丁克球（Attackable Dink）", "Reset防守（Reset）", "上網步伐（Transition）",
+      "Drop shot（短丁克）", "Long Drop shot（長丁克）", "打點判斷（Shot Selection）"
+    ];
+
+    function App() {
+      const [studentName, setStudentName] = useState("");
+      const [scores, setScores] = useState(Array(skillItems.length).fill(0));
+      const [submitted, setSubmitted] = useState(false);
+      const resultRef = useRef(null);
+
+      const handleChange = (index, value) => {
+        const newScores = [...scores];
+        newScores[index] = parseInt(value) || 0;
+        setScores(newScores);
+      };
+
+      const totalScore = scores.reduce((a, b) => a + b, 0);
+
+      const getLevel = (score) => {
+        if (score >= 135) return "約 4.0 級";
+        if (score >= 120) return "約 3.5 級";
+        if (score >= 100) return "約 3.0 級";
+        if (score >= 80) return "約 2.5 級";
+        return "約 2.0 以下";
+      };
+
+      const getNextLevelGap = (score) => {
+        if (score < 80) return `距離 2.5 級還差 ${80 - score} 分`;
+        if (score < 100) return `距離 3.0 級還差 ${100 - score} 分`;
+        if (score < 120) return `距離 3.5 級還差 ${120 - score} 分`;
+        if (score < 135) return `距離 4.0 級還差 ${135 - score} 分`;
+        return "已達最高級別！繼續保持！";
+      };
+
+      const getSummary = () => {
+        const topSkills = scores.map((score, i) => ({ score, skill: skillItems[i] })).filter(s => s.score >= 9).map(s => s.skill);
+        const weakSkills = scores.map((score, i) => ({ score, skill: skillItems[i] })).filter(s => s.score < 5).map(s => s.skill);
+        const isExcellent = topSkills.length > 5;
+        return { topSkills, weakSkills, isExcellent };
+      };
+
+      const summary = getSummary();
+
+      const handleShareScreenshot = async () => {
+        if (!resultRef.current) return;
+        const canvas = await html2canvas(resultRef.current);
+        const dataUrl = canvas.toDataURL("image/png");
+        const win = window.open();
+        if (win && win.document) {
+          win.document.write("<!DOCTYPE html><html><head><title>分享結果</title></head><body style='text-align:center;'><img style='max-width:100%;' src='" + dataUrl + "'/></body></html>");
+        } else {
+          alert("瀏覽器限制開啟新視窗，請允許彈出視窗以進行分享");
+        }
+      };
+
+      return h("div", { class: "max-w-4xl mx-auto space-y-6" },
+        h("h1", { class: "text-2xl font-bold" }, "匹克球技能評量系統"),
+        h("div", { class: "flex flex-col sm:flex-row gap-4 mt-4" },
+          h("div", { class: "flex items-center gap-2" },
+            h("label", { class: "font-medium" }, "學生姓名："),
+            h("input", {
+              type: "text", value: studentName,
+              onInput: e => setStudentName(e.target.value),
+              class: "w-48 border rounded px-2 py-1"
+            })
+          ),
+          h("div", { class: "flex items-center gap-2" },
+            h("label", { class: "font-medium" }, "測試日期："),
+            h("span", null, new Date().toLocaleDateString())
+          )
+        ),
+        !submitted && h("div", { class: "bg-white p-4 rounded shadow space-y-4" },
+          skillItems.map((item, index) =>
+            h("div", { class: "flex items-center space-x-4", key: index },
+              h("label", { class: "w-64 font-medium" }, item),
+              h("div", { class: "flex gap-1 flex-wrap" },
+                Array.from({ length: 11 }).map((_, score) =>
+                  h("button", {
+                    key: score,
+                    class: `px-2 py-1 rounded border text-sm ${scores[index] === score ? 'text-white' : ''}`,
+                    style: { backgroundColor: `hsl(${score * 12}, 85%, ${scores[index] === score ? '45%' : '85%'})` },
+                    onClick: () => handleChange(index, score)
+                  }, score)
+                )
+              )
+            )
+          ),
+          h("button", {
+            class: "mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+            onClick: () => setSubmitted(true)
+          }, "送出評量")
+        ),
+        submitted && h("div", { class: "bg-white p-4 rounded shadow", ref: resultRef },
+          h("h2", { class: "text-xl font-semibold" }, "評量結果"),
+          h("p", null, `學生：${studentName}`),
+          h("p", null, `總分：${totalScore}`),
+          h("p", null, `等級：${getLevel(totalScore)}`),
+          h("p", null, getNextLevelGap(totalScore)),
+          h("p", null, `⭐ 強項技能：${summary.topSkills.join('、')}`),
+          summary.isExcellent && h("p", { class: "text-green-600 font-semibold" }, "⭐⭐⭐ 你的整體匹克球技能非常優秀！"),
+          h("p", null, `🔧 需加強技能：${summary.weakSkills.length > 0 ? summary.weakSkills.join('、') : '無明顯弱項'}`),
+          h("ul", { class: "list-disc list-inside text-sm mt-2" },
+            ["135–150 分：約 4.0 級", "120–134 分：約 3.5 級", "100–119 分：約 3.0 級", "80–99 分：約 2.5 級", "0–79 分：約 2.0 以下"].map((item, i) => h("li", { key: i }, item))
+          ),
+          h("button", {
+            class: "mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600",
+            onClick: handleShareScreenshot
+          }, "📸 分享結果截圖至 LINE 好友")
+        )
+      );
+    }
+
+    render(h(App), document.getElementById("app"));
+  </script>
+</body>
+</html>
